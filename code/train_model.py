@@ -6,6 +6,12 @@ import torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
 import smdebug.pytorch as smd
+from torchmetrics import Precision
+from torchmetrics import Recall
+from torchmetrics import F1Score
+from torchmetrics import ConfusionMatrix
+# from sklearn.metrics import classification_report
+
 
 import argparse
 import logging
@@ -19,27 +25,36 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 
-def test(model, test_loader, criterion, device, epoch_no, hook):
-    logger.info(f"Epoch: {epoch_no} - Testing Model on Complete Testing Dataset!")
+def test(model, test_loader, criterion, device, epoch_no, hook, phase_name):
+    logger.info(f"Epoch: {epoch_no} - Testing Model on Complete {phase_name} Dataset!")
     model.eval()
     hook.set_mode(smd.modes.EVAL) # setting the  debugger hook mode to EVAL
     running_loss = 0
     running_corrects = 0
+    pred_list = []
+    target_list = []
     with torch.no_grad(): #We do not want to caluculate gradients while testing
         for inputs, labels in test_loader:
             inputs=inputs.to(device)
-            labels=labels.to(device)
+            target=labels.to(device)
             outputs=model(inputs)
-            loss=criterion(outputs, labels)
+            loss=criterion(outputs, target)
             pred = outputs.argmax(dim=1, keepdim=True)
             running_loss += loss.item() * inputs.size(0) #calculate the running loss
-            running_corrects += pred.eq(labels.view_as(pred)).sum().item() #calculate the running corrects
-
+            running_corrects += pred.eq(target.view_as(pred)).sum().item() #calculate the running corrects
+            pred_list.append(pred)
+            target_list.append(labels)
         total_loss = running_loss / len(test_loader.dataset)
         total_acc = running_corrects/ len(test_loader.dataset)
         logger.info( "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
             total_loss, running_corrects, len(test_loader.dataset), 100.0 * total_acc
         ))
+        logger.info(f"Starting calculating other metrics for {phase_name} phase")
+        total_pred =  torch.cat(pred_list, dim=0)
+        total_target =  torch.cat(target_list, dim=0)
+        calculate_metrics( total_pred, total_target,device, 9 )
+#         logger.info(f"\n {classification_report(total_target.to("cpu"), total_pred.to("cpu"))}")
+
 
 def train(model, train_loader, criterion, optimizer, device, epoch_no, hook):
     logger.info(f"Epoch: {epoch_no} - Training Model on Complete Training Dataset!")
@@ -48,16 +63,20 @@ def train(model, train_loader, criterion, optimizer, device, epoch_no, hook):
     running_loss = 0
     running_corrects = 0
     running_samples = 0
+    pred_list = []
+    target_list = []
     for inputs, labels in train_loader:
         inputs = inputs.to(device)
-        labels = labels.to(device)
+        target = labels.to(device)
         optimizer.zero_grad()
         outputs = model(inputs)
-        loss = criterion(outputs, labels)
+        loss = criterion(outputs, target)
         pred = outputs.argmax(dim=1,  keepdim=True)
         running_loss += loss.item() * inputs.size(0) #calculate the running loss
-        running_corrects += pred.eq(labels.view_as(pred)).sum().item() #calculate the running corrects
+        running_corrects += pred.eq(target.view_as(pred)).sum().item() #calculate the running corrects
         running_samples += len(inputs) #keep count of running samples
+        pred_list.append(pred)
+        target_list.append(labels)
         loss.backward()
         optimizer.step()
         if running_samples %500 == 0:
@@ -70,18 +89,23 @@ def train(model, train_loader, criterion, optimizer, device, epoch_no, hook):
                 running_samples,
                 100.0*(running_corrects/ running_samples)
             ))
+
     total_loss = running_loss / len(train_loader.dataset)
     total_acc = running_corrects/ len(train_loader.dataset)
     logger.info( "\nTrain set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
         total_loss, running_corrects, len(train_loader.dataset), 100.0 * total_acc
-    ))   
+    ))
+    logger.info("Starting calculating other metrics for Training phase")
+    total_pred =  torch.cat(pred_list, dim=0)
+    total_target =  torch.cat(target_list, dim=0)
+    calculate_metrics( total_pred, total_target,device, 9 )
     return model
     
 def net():
     model = models.resnet50(pretrained = True) #using a pretrained resnet50 model with 50 layers
     
     for param in model.parameters():
-        param.requires_grad = False #Freeing all the Conv layers
+        param.requires_grad = False #Freezing all the Conv layers
     
     num_features = model.fc.in_features
     model.fc = nn.Sequential( nn.Linear( num_features, 256), #Adding our own fully connected layers
@@ -101,17 +125,23 @@ def create_data_loaders(data, batch_size):
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.Resize(256),
         transforms.RandomResizedCrop((224, 224)),
-        transforms.ToTensor() ])
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) #Using the standard values of ImageNet dataset as plant dataset is similar to it.
+    ]) 
     
     validation_transform = transforms.Compose([
         transforms.Resize(256),
         transforms.RandomResizedCrop((224, 224)),
-        transforms.ToTensor() ])
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) #Using the standard values of ImageNet dataset as plant dataset is similar to it.
+    ])
     
     testing_transform = transforms.Compose([
         transforms.Resize(256),
         transforms.RandomResizedCrop((224, 224)),
-        transforms.ToTensor() ])
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) #Using the standard values of ImageNet dataset as plant dataset is similar to it.
+    ])
     
     train_dataset = torchvision.datasets.ImageFolder(root=train_dataset_path, transform=training_transform)    
     val_dataset = torchvision.datasets.ImageFolder(root=val_dataset_path, transform=validation_transform)    
@@ -123,6 +153,20 @@ def create_data_loaders(data, batch_size):
     test_data_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size )
     
     return train_data_loader, test_data_loader, val_data_loader
+
+def calculate_metrics( pred_param, target_param,device, num_classes ):
+    pred = pred_param.to("cpu")
+    target = target_param.to("cpu")
+    precision = Precision(average='macro', num_classes=num_classes)
+    recall = Recall(average='macro', num_classes=num_classes)
+    f1_score = F1Score(num_classes=num_classes)
+    confusion_matrix = ConfusionMatrix(num_classes=num_classes)
+    confusion_matrix_norm = ConfusionMatrix(num_classes=num_classes, normalize = 'true')
+    logger.info(f" Precision: {precision(pred, target)}" )
+    logger.info(f" Recall: {recall(pred, target)}" )
+    logger.info(f" F1 Score: {f1_score(pred, target)}" )
+    logger.info(f" Confusion Matrix: \n {confusion_matrix(pred, target)}" )
+    logger.info(f" Confusion Matrix Normalized: \n {confusion_matrix_norm(pred, target)}" )
 
 def main(args):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -150,10 +194,10 @@ def main(args):
         logger.info(f"Epoch {epoch_no} - Starting Training phase.")
         model=train(model, train_data_loader, loss_criterion, optimizer, device, epoch_no, hook)
         logger.info(f"Epoch {epoch_no} - Starting Validation phase.")
-        test(model, val_data_loader, loss_criterion, device, epoch_no, hook)
+        test(model, val_data_loader, loss_criterion, device, epoch_no, hook, "Validation")
     
     logger.info("Starting to perform Testing of the trained model on the Test dataset.")
-    test(model, test_data_loader, loss_criterion, device, 1,hook)
+    test(model, test_data_loader, loss_criterion, device, 1,hook, "Testing")
     logger.info("Completed Testing phase of the trained model on the Test dataset.")
     
     logger.info("Starting to Save the Model")
