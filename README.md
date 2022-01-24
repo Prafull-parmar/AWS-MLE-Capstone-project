@@ -25,7 +25,7 @@ https://review.udacity.com/#!/reviews/3346579
 * **proposal.pdf** -- Accepted Project proposal
 * **proposal.docx** -- Docx version of Final project proposal
 * **testImages** -- This folder contains random test images that were used for evaluation of the deployed final model.
-* **visualizations** -- This folder contains images of all relevant important visualizations like confusion matri, required for evaluation
+* **visualizations** -- This folder contains images of all relevant important visualizations like confusion matrix,charts,etc required for evaluation
 * **snapshots** -- This folder contains images/snapshots of all relevant important evidence required for evaluation
 * **benchmark_papers** -- Contains pdf copy of reference papers
 * **profiler_report.zip** -- This contains a zipped file of the profiler outputs that were received while training the final ml model
