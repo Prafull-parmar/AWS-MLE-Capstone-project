@@ -2,6 +2,9 @@
 Udacity AWS Machine Learning Engineer Capstone Project
 # Plants Disease Detection Using Deep Learning
 
+## Data set public S3 uri link : s3://sagemaker-us-east-1-970845818811/CapstoneProposal.zip
+
+## project proposal Review link : https://review.udacity.com/#!/reviews/3346579
 
 ## Code Files used throughout the project
 
@@ -29,7 +32,7 @@ Udacity AWS Machine Learning Engineer Capstone Project
 ## Third-party Libraries used in the project.
 1. [split-folders](https://pypi.org/project/split-folders/) - Split folders with files (e.g. images) into train, validation and test (dataset) folders.
 2. [tqdm](https://github.com/tqdm/tqdm) - Used to get visual updates/progress for copying files.
-3. [torchmetrics] (https://torchmetrics.readthedocs.io/en/latest/) - For calculating metrics of the training jobs.
+3. [torchmetrics](https://torchmetrics.readthedocs.io/en/latest/) - For calculating metrics of the training jobs.
 
 
 ## Project Overview
