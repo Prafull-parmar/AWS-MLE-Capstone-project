@@ -2,9 +2,11 @@
 Udacity AWS Machine Learning Engineer Capstone Project
 # Plants Disease Detection Using Deep Learning
 
-## Data set public S3 uri link : s3://sagemaker-us-east-1-970845818811/CapstoneProposal.zip
+## Data set public S3 uri link : 
+https://sagemaker-us-east-1-970845818811.s3.amazonaws.com/CapstoneProposal.zip
 
-## project proposal Review link : https://review.udacity.com/#!/reviews/3346579
+## project proposal Review link :
+https://review.udacity.com/#!/reviews/3346579
 
 ## Code Files used throughout the project
 
